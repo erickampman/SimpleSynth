@@ -28,9 +28,10 @@ The engine (`src/`) mirrors PolygraphModular's structure; the DPF plugin assembl
 plugin/               the DPF plugin definition (the CLAP wrapper is generated from these)
                         DistrhoPluginInfo.h (plugin flags), SimpleSynthParams.h (shared param
                         table), SimpleSynthPlugin.cpp (DSP: MIDI + params → VoiceManager)
-src/UI/               the plugin GUI
-                        Knob.hpp — reusable labelled rotary-knob widget (NanoSubWidget +
-                        DPF KnobEventHandler); SimpleSynthUI.cpp — composes one per param
+src/UI/               the plugin GUI (reusable NanoVG widgets + the panel)
+                        Knob.hpp — labelled rotary-knob widget (NanoSubWidget + KnobEventHandler);
+                        GroupBox.hpp — titled container panel that frames + lays out a group of
+                        controls; SimpleSynthUI.cpp — composes the knobs into labelled groups
 src/Common/           shim + MIDI + params + utilities
                         pm_compat.h (Apple→portable), pm_midi.* (spec UMP + MIDI-1 decode),
                         clap_ump.h (CLAP↔UMP), pm_params.h / pm_param_data.* / pm_addresses.h,

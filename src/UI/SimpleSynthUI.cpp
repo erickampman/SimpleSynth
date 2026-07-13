@@ -1,20 +1,23 @@
-// SimpleSynthUI.cpp — UI side: a row of reusable Knob widgets (Gain + ADSR) bound to the
-// plugin parameters. The knob visuals + interaction live in the reusable Knob component
-// (Knob.hpp); this file just creates one per parameter, lays them out, and shuttles values
-// between the knobs and the host. Adding a control later is: make a Knob, configure it from
-// the shared params table, place it.
+// SimpleSynthUI.cpp — UI side: reusable Knob widgets grouped into titled GroupBox panels and
+// bound to the plugin parameters. The knob visuals/interaction live in Knob.hpp and the panel
+// framing in GroupBox.hpp; this file just builds the panels, drops a knob per parameter into
+// the right one, lays them out, and shuttles values to/from the host. Each future IFS module
+// becomes another GroupBox with its own knobs.
 
 #include "DistrhoUI.hpp"
 
 #include <cstdio>
 #include <memory>
 
+#include "GroupBox.hpp"
 #include "Knob.hpp"
 #include "SimpleSynthParams.h"
 
 START_NAMESPACE_DISTRHO
 
 using namespace simplesynth;
+using DGL_NAMESPACE::Color;
+using DGL_NAMESPACE::GroupBox;
 using DGL_NAMESPACE::Knob;
 
 class SimpleSynthUI : public UI,
@@ -24,19 +27,33 @@ public:
     SimpleSynthUI()
         : UI(DISTRHO_UI_DEFAULT_WIDTH, DISTRHO_UI_DEFAULT_HEIGHT)
     {
+        setGeometryConstraints(380, 240, false, false);
+
+        const Color accent(120, 190, 205);
+        fEnvGroup = std::make_unique<GroupBox>(this);
+        fEnvGroup->setTitle("ADSR Envelope");
+        fEnvGroup->setAccentColor(accent);
+        fOutGroup = std::make_unique<GroupBox>(this);
+        fOutGroup->setTitle("Output");
+        fOutGroup->setAccentColor(accent);
+
         for (uint32_t i = 0; i < kParamCount; ++i)
         {
             const ParamSpec& s = kParams[i];
-            auto knob = std::make_unique<Knob>(this, this);
+            GroupBox* group = (i == kParamGain) ? fOutGroup.get() : fEnvGroup.get();
+
+            auto knob = std::make_unique<Knob>(group, this);
             knob->setId(i);
             knob->setLabel(s.name);
             knob->configure(s.min, s.max, s.logarithmic, s.def);
             knob->setRealValue(s.def, false);
             const bool isTime = s.unit[0] == 's';
             knob->setFormatter([isTime](float v) { return format(v, isTime); });
+
+            group->addControl(knob.get());
             fKnobs[i] = std::move(knob);
         }
-        layoutKnobs();
+        layout();
     }
 
 protected:
@@ -61,7 +78,7 @@ protected:
     /* -- drawing / layout ------------------------------------------------- */
     void onNanoDisplay() override
     {
-        // Panel background; the knobs draw themselves as child widgets.
+        // Window background; the group panels (and their knobs) draw themselves.
         beginPath();
         rect(0, 0, getWidth(), getHeight());
         fillColor(24, 26, 31);
@@ -71,21 +88,33 @@ protected:
     void onResize(const ResizeEvent& ev) override
     {
         UI::onResize(ev);
-        layoutKnobs();
+        layout();
     }
 
 private:
-    std::unique_ptr<Knob> fKnobs[kParamCount];
+    // Declared before the knobs so the knobs (their children) are destroyed first.
+    std::unique_ptr<GroupBox> fEnvGroup;
+    std::unique_ptr<GroupBox> fOutGroup;
+    std::unique_ptr<Knob>     fKnobs[kParamCount];
 
-    // Even columns across the full width; each knob fills its column and centres itself.
-    void layoutKnobs()
+    // Envelope panel (4 knobs) beside a narrow Output panel (1 knob), widths ∝ knob counts.
+    void layout()
     {
-        const uint colW = getWidth() / kParamCount;
-        for (uint32_t i = 0; i < kParamCount; ++i)
-        {
-            fKnobs[i]->setSize(colW, getHeight());
-            fKnobs[i]->setAbsolutePos(static_cast<int>(i * colW), 0);
-        }
+        const int W = static_cast<int>(getWidth());
+        const int H = static_cast<int>(getHeight());
+        const int margin = 8, gap = 8;
+        const int usableW = W - 2 * margin - gap;
+        const int envW = usableW * 4 / 5;
+        const int outW = usableW - envW;
+        const int y = margin, gh = H - 2 * margin;
+
+        fEnvGroup->setAbsolutePos(margin, y);
+        fEnvGroup->setSize(static_cast<uint>(envW), static_cast<uint>(gh));
+        fOutGroup->setAbsolutePos(margin + envW + gap, y);
+        fOutGroup->setSize(static_cast<uint>(outW), static_cast<uint>(gh));
+
+        fEnvGroup->relayout();
+        fOutGroup->relayout();
     }
 
     static std::string format(float v, bool isTime)
