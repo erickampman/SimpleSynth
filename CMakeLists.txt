@@ -44,8 +44,14 @@ add_executable(simplesynth-smoke test/host_smoke.cpp src/SimpleSynth.cpp)
 target_include_directories(simplesynth-smoke PRIVATE src)
 target_link_libraries(simplesynth-smoke PRIVATE clap)
 
+# --- PM framework port (Phase 1b) ------------------------------------------
+# MIDI layer (spec-derived UMP) + CLAP decoders + vendored AU-free leaf files.
+add_executable(pm-selftest test/pm_selftest.cpp src/pm/pm_midi.cpp)
+target_include_directories(pm-selftest PRIVATE src/pm)
+target_link_libraries(pm-selftest PRIVATE clap)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-    foreach(t SimpleSynth simplesynth-smoke)
+    foreach(t SimpleSynth simplesynth-smoke pm-selftest)
         target_compile_options(${t} PRIVATE -Wall -Wextra)
         if(SIMPLESYNTH_WERROR)
             target_compile_options(${t} PRIVATE -Werror)
@@ -56,3 +62,6 @@ endif()
 enable_testing()
 add_test(NAME smoke COMMAND simplesynth-smoke)
 set_tests_properties(smoke PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
+
+add_test(NAME pm COMMAND pm-selftest)
+set_tests_properties(pm PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
