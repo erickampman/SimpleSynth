@@ -57,7 +57,9 @@ add_library(pm_framework STATIC
     src/pm/CombineModule.cpp
     src/pm/FinalModule.cpp
     src/pm/SlewModule.cpp
-    src/pm/PitchConverterModule.cpp)
+    src/pm/PitchConverterModule.cpp
+    src/pm/ModuleFactory.cpp
+    src/pm/pm_module_specs.cpp)
 target_include_directories(pm_framework PUBLIC src/pm)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(pm_framework PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
@@ -78,6 +80,9 @@ target_link_libraries(pm-adsr-test PRIVATE pm_framework)
 add_executable(pm-modules-test test/pm_modules_test.cpp)
 target_link_libraries(pm-modules-test PRIVATE pm_framework)
 
+add_executable(pm-factory-test test/pm_factory_test.cpp)
+target_link_libraries(pm-factory-test PRIVATE pm_framework)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     foreach(t SimpleSynth simplesynth-smoke pm-selftest)
         target_compile_options(${t} PRIVATE -Wall -Wextra)
@@ -86,7 +91,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         endif()
     endforeach()
     # tests that pull in vendored headers → relaxed (unused params in inline methods).
-    foreach(t pm-module-test pm-sinosc-test pm-adsr-test pm-modules-test)
+    foreach(t pm-module-test pm-sinosc-test pm-adsr-test pm-modules-test pm-factory-test)
         target_compile_options(${t} PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
     endforeach()
 endif()
@@ -109,3 +114,6 @@ set_tests_properties(pm-adsr PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
 
 add_test(NAME pm-modules COMMAND pm-modules-test)
 set_tests_properties(pm-modules PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
+
+add_test(NAME pm-factory COMMAND pm-factory-test)
+set_tests_properties(pm-factory PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
