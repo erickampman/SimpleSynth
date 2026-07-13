@@ -105,6 +105,28 @@ enum ModuleItem : NSUInteger {
    ModuleItemUnspecified = 0,
 };
 
+// --- per-module parameter-item enums (added as each module is ported) --------------------
+
+enum OscSyncType : NSUInteger {
+   OscSyncTypeDown = 0,
+   OscSyncTypeUp,
+   OscSyncTypeBoth,
+};
+
+enum SinOscParamItem : NSUInteger {
+   SinOscParamItemPitch = 1,
+   SinOscParamItemPitchFine,
+   SinOscParamItemPitchInput,
+   SinOscParamItemModPitch,
+   SinOscParamItemModPitch2,
+   SinOscParamItemModPhase,
+   SinOscParamItemFreqModLevel,
+   SinOscParamItemPhaseModLevel,
+   SinOscParamItemFreqModLevel2,
+   SinOscParamItemModSync,
+   SinOscParamItemModSyncType,
+};
+
 // Per-parameter constants (portable): the source for CLAP clap_param_info generation.
 struct ModuleParamConstants {
    const char*               name;

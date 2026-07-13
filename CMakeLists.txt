@@ -49,7 +49,9 @@ target_link_libraries(simplesynth-smoke PRIVATE clap)
 # relaxed warnings (vendored code, its own style); our glue and tests stay strict.
 add_library(pm_framework STATIC
     src/pm/pm_midi.cpp
-    src/pm/ModuleMap.cpp)
+    src/pm/ModuleMap.cpp
+    src/pm/pm_param_data.cpp
+    src/pm/SinOscillatorModule.cpp)
 target_include_directories(pm_framework PUBLIC src/pm)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(pm_framework PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
@@ -61,6 +63,9 @@ target_link_libraries(pm-selftest PRIVATE pm_framework clap)
 add_executable(pm-module-test test/pm_module_test.cpp)
 target_link_libraries(pm-module-test PRIVATE pm_framework)
 
+add_executable(pm-sinosc-test test/pm_sinosc_test.cpp)
+target_link_libraries(pm-sinosc-test PRIVATE pm_framework)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     foreach(t SimpleSynth simplesynth-smoke pm-selftest)
         target_compile_options(${t} PRIVATE -Wall -Wextra)
@@ -68,8 +73,10 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
             target_compile_options(${t} PRIVATE -Werror)
         endif()
     endforeach()
-    # pm-module-test pulls in vendored headers → relaxed (unused params in inline methods).
-    target_compile_options(pm-module-test PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
+    # tests that pull in vendored headers → relaxed (unused params in inline methods).
+    foreach(t pm-module-test pm-sinosc-test)
+        target_compile_options(${t} PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
+    endforeach()
 endif()
 
 enable_testing()
@@ -81,3 +88,6 @@ set_tests_properties(pm PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
 
 add_test(NAME pm-module COMMAND pm-module-test)
 set_tests_properties(pm-module PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
+
+add_test(NAME pm-sinosc COMMAND pm-sinosc-test)
+set_tests_properties(pm-sinosc PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
