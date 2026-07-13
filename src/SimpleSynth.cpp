@@ -1,10 +1,8 @@
-// SimpleSynth — a CLAP instrument skeleton.
+// SimpleSynth — a CLAP instrument driving the vendored PolygraphModular voice engine.
 //
-// This establishes the exact CLAP surface the PolygraphModular VoiceManager will plug into:
-// note-ports in, stereo audio out, a params extension, state, and a sample-accurate event
-// loop in process(). The DSP here is a PLACEHOLDER — a monophonic sine with a one-pole AR
-// envelope — so the instrument is audible and validator-clean today. Phase 1b replaces the
-// placeholder voice with the vendored PM framework behind this same surface.
+// process() decodes CLAP note/MIDI events into pm::UmpMessage and feeds them to a
+// VoiceManager (polyphony, allocation, stealing, mono mode), which renders the v1 voice
+// (PitchConverter → Slew → SinOsc → Combine ×ADSR → Final) per active voice and sums them.
 
 #include <clap/clap.h>
 
@@ -12,11 +10,15 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
-// ------------------------------------------------------------------- parameters ----------
+#include "VoiceManager.hpp"
+#include "clap_ump.h"
+#include "pm_addresses.h"
+#include "pm_params.h"
+
 enum { kParamGain = 0, kParamCount };
 
-// ------------------------------------------------------------------- descriptor ----------
 static const clap_plugin_descriptor_t s_desc = {
    .clap_version = CLAP_VERSION_INIT,
    .id = "com.example.simplesynth",
@@ -25,40 +27,23 @@ static const clap_plugin_descriptor_t s_desc = {
    .url = "https://example.com/simplesynth",
    .manual_url = "",
    .support_url = "",
-   .version = "0.1.0",
-   .description = "A minimal CLAP instrument (placeholder mono sine; PM framework to follow).",
+   .version = "0.2.0",
+   .description = "A polyphonic CLAP instrument built on the PolygraphModular voice engine.",
    .features = (const char *[]){CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_SYNTHESIZER,
                                 CLAP_PLUGIN_FEATURE_STEREO, nullptr},
 };
 
-// ------------------------------------------------------------------- plugin state ---------
 struct SimpleSynth {
    clap_plugin_t      plugin;
    const clap_host_t *host = nullptr;
+   double             sampleRate = 48000.0;
+   float              gain = 0.5f; // master gain (headroom for summed voices)
 
-   double sampleRate = 48000.0;
+   std::unique_ptr<VoiceManager> vm;
 
-   // parameter
-   float gain = 0.8f;
-
-   // placeholder monophonic voice
-   double phase    = 0.0;   // 0..1
-   double phaseInc = 0.0;   // per-sample
-   float  env      = 0.0f;  // 0..1
-   bool   gate     = false;
-   int    curKey   = -1;    // held MIDI key, -1 = none
-   float  envCoeff = 0.001f;
-
-   static double keyToHz(int key) { return 440.0 * std::pow(2.0, (key - 69) / 12.0); }
-
-   void noteOn(int key) {
-      curKey   = key;
-      gate     = true;
-      phaseInc = keyToHz(key) / sampleRate;
-   }
-   void noteOff(int key) {
-      if (key < 0 || key == curKey)
-         gate = false;
+   void setVMParam(MIDIParamItem item, float v) {
+      vm->setVoiceManagerParameter(
+         MODULE_PARAM_ADDRESS(ModuleParamKindMIDI, ModuleInstance1, item), v);
    }
 };
 
@@ -103,7 +88,7 @@ static bool paramsGetInfo(const clap_plugin_t *, uint32_t index, clap_param_info
    info->flags = CLAP_PARAM_IS_AUTOMATABLE;
    info->min_value = 0.0;
    info->max_value = 1.0;
-   info->default_value = 0.8;
+   info->default_value = 0.5;
    std::snprintf(info->name, sizeof(info->name), "Gain");
    return true;
 }
@@ -180,17 +165,22 @@ static void handleEvent(SimpleSynth *s, const clap_event_header_t *h) {
    if (h->space_id != CLAP_CORE_EVENT_SPACE_ID)
       return;
    switch (h->type) {
-   case CLAP_EVENT_NOTE_ON: {
-      auto *ev = reinterpret_cast<const clap_event_note_t *>(h);
-      s->noteOn(ev->key);
+   case CLAP_EVENT_NOTE_ON:
+      s->vm->handleMIDIMessage(pm::fromClapNote(*reinterpret_cast<const clap_event_note_t *>(h), true));
       break;
-   }
    case CLAP_EVENT_NOTE_OFF:
-   case CLAP_EVENT_NOTE_CHOKE: {
-      auto *ev = reinterpret_cast<const clap_event_note_t *>(h);
-      s->noteOff(ev->key);
+   case CLAP_EVENT_NOTE_CHOKE:
+      s->vm->handleMIDIMessage(pm::fromClapNote(*reinterpret_cast<const clap_event_note_t *>(h), false));
+      break;
+   case CLAP_EVENT_MIDI: {
+      pm::UmpMessage m = pm::fromClapMidi1(*reinterpret_cast<const clap_event_midi_t *>(h));
+      if (pm::isChannelMessage(m))
+         s->vm->handleMIDIMessage(m);
       break;
    }
+   case CLAP_EVENT_MIDI2:
+      s->vm->handleMIDIMessage(pm::fromClapMidi2(*reinterpret_cast<const clap_event_midi2_t *>(h)));
+      break;
    case CLAP_EVENT_PARAM_VALUE:
       applyParam(s, reinterpret_cast<const clap_event_param_value_t *>(h));
       break;
@@ -199,23 +189,26 @@ static void handleEvent(SimpleSynth *s, const clap_event_header_t *h) {
    }
 }
 
-static void renderBlock(SimpleSynth *s, float *outL, float *outR, uint32_t start, uint32_t end) {
+// Render [start,end) by chunking to the module block size; VoiceManager zeroes + sums voices.
+static void renderSegment(SimpleSynth *s, float *outL, float *outR, uint32_t start, uint32_t end) {
    const float g = s->gain;
-   for (uint32_t i = start; i < end; ++i) {
-      const float target = s->gate ? 1.0f : 0.0f;
-      s->env += s->envCoeff * (target - s->env);
-      const float smp = static_cast<float>(std::sin(s->phase * 2.0 * M_PI)) * s->env * g;
-      outL[i] = smp;
-      outR[i] = smp;
-      s->phase += s->phaseInc;
-      if (s->phase >= 1.0)
-         s->phase -= 1.0;
+   uint32_t pos = start;
+   while (pos < end) {
+      uint32_t chunk = end - pos;
+      if (chunk > MODULE_BUFF_SIZE)
+         chunk = MODULE_BUFF_SIZE;
+      s->vm->process(chunk, outL + pos, outR + pos);
+      for (uint32_t i = pos; i < pos + chunk; ++i) {
+         outL[i] *= g;
+         outR[i] *= g;
+      }
+      pos += chunk;
    }
 }
 
 static clap_process_status process(const clap_plugin_t *plugin, const clap_process_t *p) {
    auto *s = static_cast<SimpleSynth *>(plugin->plugin_data);
-   if (p->audio_outputs_count < 1)
+   if (p->audio_outputs_count < 1 || !s->vm)
       return CLAP_PROCESS_ERROR;
 
    float *outL = p->audio_outputs[0].data32[0];
@@ -239,7 +232,7 @@ static clap_process_status process(const clap_plugin_t *plugin, const clap_proce
             break;
          }
       }
-      renderBlock(s, outL, outR, i, next);
+      renderSegment(s, outL, outR, i, next);
       i = next;
    }
    return CLAP_PROCESS_CONTINUE;
@@ -253,18 +246,25 @@ static void plugDestroy(const clap_plugin_t *plugin) {
 static bool plugActivate(const clap_plugin_t *plugin, double sr, uint32_t, uint32_t) {
    auto *s = static_cast<SimpleSynth *>(plugin->plugin_data);
    s->sampleRate = sr;
-   s->envCoeff = static_cast<float>(1.0 - std::exp(-1.0 / (0.005 * sr))); // ~5ms AR
+   s->vm = std::make_unique<VoiceManager>(sr, MODULE_BUFF_SIZE);
+   // VoiceManager's params aren't zero-initialised — set the v1 defaults.
+   s->setVMParam(MIDIParamItemVoiceCount, 8);
+   s->setVMParam(MIDIParamItemChannelFilterValue, 0);
+   s->setVMParam(MIDIParamItemGroupFilterValue, 0);
+   s->setVMParam(MIDIParamItemVoiceStealAlgorithm, VoiceStealAlgorithmOldest);
+   s->setVMParam(MIDIParamItemFreeRun, 0);
+   s->setVMParam(MIDIParamItemLegato, 0);
    return true;
 }
-static void plugDeactivate(const clap_plugin_t *) {}
+static void plugDeactivate(const clap_plugin_t *plugin) {
+   static_cast<SimpleSynth *>(plugin->plugin_data)->vm.reset();
+}
 static bool plugStartProcessing(const clap_plugin_t *) { return true; }
 static void plugStopProcessing(const clap_plugin_t *) {}
 static void plugReset(const clap_plugin_t *plugin) {
    auto *s = static_cast<SimpleSynth *>(plugin->plugin_data);
-   s->phase = 0.0;
-   s->env = 0.0f;
-   s->gate = false;
-   s->curKey = -1;
+   if (s->vm)
+      s->vm->reset();
 }
 static const void *plugGetExtension(const clap_plugin_t *, const char *id) {
    if (!std::strcmp(id, CLAP_EXT_AUDIO_PORTS))

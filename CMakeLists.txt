@@ -17,7 +17,7 @@ endif()
 # --- the .clap instrument module -------------------------------------------
 add_library(SimpleSynth MODULE src/SimpleSynth.cpp)
 target_include_directories(SimpleSynth PRIVATE src)
-target_link_libraries(SimpleSynth PRIVATE clap)
+target_link_libraries(SimpleSynth PRIVATE clap pm_framework)
 
 if(APPLE)
     set_target_properties(SimpleSynth PROPERTIES
@@ -42,7 +42,7 @@ endif()
 # --- lifecycle self-test ---------------------------------------------------
 add_executable(simplesynth-smoke test/host_smoke.cpp src/SimpleSynth.cpp)
 target_include_directories(simplesynth-smoke PRIVATE src)
-target_link_libraries(simplesynth-smoke PRIVATE clap)
+target_link_libraries(simplesynth-smoke PRIVATE clap pm_framework)
 
 # --- PM framework port (Phase 1b) ------------------------------------------
 # Vendored PolygraphModular framework + our shim/MIDI layer, as a static lib. Compiled with
@@ -93,8 +93,16 @@ add_executable(pm-voicemanager-test test/pm_voicemanager_test.cpp)
 target_link_libraries(pm-voicemanager-test PRIVATE pm_framework)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    # pm-selftest only pulls in light headers → fully strict.
+    # SimpleSynth + smoke are our code but include vendored framework headers → strict on our
+    # logic, but tolerate the vendored style (unknown pragmas / unused params).
+    target_compile_options(pm-selftest PRIVATE -Wall -Wextra)
+    set(PM_VENDOR_WARN_SUPPRESS
+        -Wno-unknown-pragmas -Wno-unused-parameter -Wno-sign-compare -Wno-unused-function)
+    foreach(t SimpleSynth simplesynth-smoke)
+        target_compile_options(${t} PRIVATE -Wall -Wextra ${PM_VENDOR_WARN_SUPPRESS})
+    endforeach()
     foreach(t SimpleSynth simplesynth-smoke pm-selftest)
-        target_compile_options(${t} PRIVATE -Wall -Wextra)
         if(SIMPLESYNTH_WERROR)
             target_compile_options(${t} PRIVATE -Werror)
         endif()
