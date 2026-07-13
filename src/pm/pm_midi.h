@@ -9,6 +9,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace pm {
@@ -96,6 +97,11 @@ bool        containsNoteNumber(const UmpMessage& m, uint8_t& note);
 // Decode a raw MIDI 2.0 channel-voice UMP (2 x 32-bit words, native order) into UmpMessage.
 UmpMessage  decodeUmp(const uint32_t words[2]);
 std::string toString(const UmpMessage& m);
+
+// Derive one note message from another (used by the voice state machine for retrigger/steal).
+std::optional<UmpMessage> makeNoteOnMsgFromOnMsg(const UmpMessage& m);   // copy if it's a note-on
+std::optional<UmpMessage> makeNoteOffMsgFromOnMsg(const UmpMessage& m);  // note-on → matching off
+std::optional<UmpMessage> makeNoteOffMsgFromOffMsg(const UmpMessage& m); // copy if it's a note-off
 
 } // namespace pm
 

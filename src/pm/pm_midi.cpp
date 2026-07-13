@@ -56,6 +56,24 @@ UmpMessage decodeUmp(const uint32_t words[2]) {
    return m;
 }
 
+std::optional<UmpMessage> makeNoteOnMsgFromOnMsg(const UmpMessage& m) {
+   if (!isChannelVoice2(m) || m.status != kStatusNoteOn)
+      return std::nullopt;
+   return m;
+}
+std::optional<UmpMessage> makeNoteOffMsgFromOnMsg(const UmpMessage& m) {
+   if (!isChannelVoice2(m) || m.status != kStatusNoteOn)
+      return std::nullopt;
+   UmpMessage r = m;
+   r.status = kStatusNoteOff;
+   return r;
+}
+std::optional<UmpMessage> makeNoteOffMsgFromOffMsg(const UmpMessage& m) {
+   if (!isChannelVoice2(m) || m.status != kStatusNoteOff)
+      return std::nullopt;
+   return m;
+}
+
 std::string toString(const UmpMessage& m) {
    char buf[96];
    std::snprintf(buf, sizeof(buf), "UMP mt=%u grp=%u st=0x%X ch=%u note=%u vel=%u attr(%u)=0x%X",

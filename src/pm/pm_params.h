@@ -169,6 +169,11 @@ enum PitchConverterParamItem : NSUInteger {
    PitchConverterParamItemDummy = 1,
 };
 
+// Referenced by Voice::connectTunnelPairs (no tunnel modules in the v1 patch, but it must compile).
+enum TunnelOutParamItem : NSUInteger {
+   TunnelOutParamItemInput = 1,
+};
+
 // Per-parameter constants (portable): the source for CLAP clap_param_info generation.
 struct ModuleParamConstants {
    const char*               name;
