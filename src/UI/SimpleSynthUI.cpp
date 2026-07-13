@@ -16,11 +16,9 @@ START_NAMESPACE_DISTRHO
 
 using namespace simplesynth;
 using DGL_NAMESPACE::Knob;
-using DGL_NAMESPACE::KnobEventHandler;
-using DGL_NAMESPACE::SubWidget;
 
 class SimpleSynthUI : public UI,
-                      public KnobEventHandler::Callback
+                      public Knob::Callback
 {
 public:
     SimpleSynthUI()
@@ -32,10 +30,8 @@ public:
             auto knob = std::make_unique<Knob>(this, this);
             knob->setId(i);
             knob->setLabel(s.name);
-            knob->setRange(s.min, s.max);
-            knob->setDefault(s.def);
-            knob->setUsingLogScale(s.logarithmic);
-            knob->setValue(s.def, false);
+            knob->configure(s.min, s.max, s.logarithmic, s.def);
+            knob->setRealValue(s.def, false);
             const bool isTime = s.unit[0] == 's';
             knob->setFormatter([isTime](float v) { return format(v, isTime); });
             fKnobs[i] = std::move(knob);
@@ -49,18 +45,17 @@ protected:
     {
         if (index < kParamCount)
         {
-            fKnobs[index]->setValue(value, false);
+            fKnobs[index]->setRealValue(value, false);
             fKnobs[index]->repaint();
         }
     }
 
-    /* -- knob -> host (KnobEventHandler::Callback) ------------------------ */
-    void knobDragStarted(SubWidget* widget) override  { editParameter(widget->getId(), true); }
-    void knobDragFinished(SubWidget* widget) override { editParameter(widget->getId(), false); }
-    void knobValueChanged(SubWidget* widget, float value) override
+    /* -- knob -> host (Knob::Callback, real units) ------------------------ */
+    void knobDragStarted(Knob* knob) override  { editParameter(knob->getId(), true); }
+    void knobDragFinished(Knob* knob) override { editParameter(knob->getId(), false); }
+    void knobValueChanged(Knob* knob, float realValue) override
     {
-        setParameterValue(widget->getId(), value);
-        widget->repaint();
+        setParameterValue(knob->getId(), realValue);
     }
 
     /* -- drawing / layout ------------------------------------------------- */

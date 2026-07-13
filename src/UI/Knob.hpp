@@ -2,21 +2,23 @@
 //
 // It is a self-contained NanoSubWidget: give it a bounding box, a range, a caption and a value
 // formatter, and it draws itself (arc value-ring + bevelled body + indicator + label + live
-// readout) and handles its own interaction. Interaction (vertical drag, scroll-wheel, double-
-// click-to-default, optional log law) comes from DPF's KnobEventHandler — the same machinery
-// DPF's own widgets use — so this file only owns the drawing.
+// readout) and handles its own interaction.
+//
+// Interaction comes from DPF's KnobEventHandler (vertical drag, scroll-wheel, double-click-to-
+// default), but the knob always drives that handler in a *linear normalized* [0,1] space and
+// applies any log law itself. That is deliberate: DPF's KnobEventHandler log-scale drag is
+// broken (it re-applies logscale() to its linear accumulator every motion event, pinning wide
+// ranges near the minimum), and a normalized handler also gives every knob — linear or log —
+// the same predictable "one drag = full range" feel.
 //
 // Usage:
-//   auto k = std::make_unique<Knob>(this, this); // parent widget, KnobEventHandler::Callback*
-//   k->setId(myParamIndex);                       // so the callback knows which control fired
+//   auto k = std::make_unique<Knob>(this, this);  // parent widget, Knob::Callback*
+//   k->setId(paramIndex);                          // so the callback knows which control fired
 //   k->setLabel("Attack");
-//   k->setRange(0.001f, 10.0f); k->setDefault(0.01f); k->setUsingLogScale(true);
+//   k->configure(0.001f, 10.0f, /*logarithmic=*/true, /*def=*/0.01f);
 //   k->setFormatter([](float v){ ... return std::string; });
-//   k->setValue(0.01f, false);
+//   k->setRealValue(0.01f);
 //   k->setSize(w, h); k->setAbsolutePos(x, y);
-//
-// The parent implements KnobEventHandler::Callback and routes knobValueChanged() to its host
-// (e.g. setParameterValue) using widget->getId().
 
 #ifndef SIMPLESYNTH_KNOB_HPP
 #define SIMPLESYNTH_KNOB_HPP
@@ -32,22 +34,49 @@
 START_NAMESPACE_DGL
 
 class Knob : public NanoSubWidget,
-             public KnobEventHandler
+             public KnobEventHandler,
+             private KnobEventHandler::Callback
 {
 public:
-    explicit Knob(Widget* parent, KnobEventHandler::Callback* callback)
+    // A knob reports in real (mapped) units and identifies itself by Widget id.
+    class Callback
+    {
+    public:
+        virtual ~Callback() {}
+        virtual void knobDragStarted(Knob* knob) = 0;
+        virtual void knobDragFinished(Knob* knob) = 0;
+        virtual void knobValueChanged(Knob* knob, float realValue) = 0;
+    };
+
+    explicit Knob(Widget* parent, Callback* callback)
         : NanoSubWidget(parent),
-          KnobEventHandler(this)
+          KnobEventHandler(this),
+          fCallback(callback)
     {
         fHasFont = loadSharedResources(); // DPF's bundled DejaVu Sans for this NanoVG context
-        setCallback(callback);
+        KnobEventHandler::setRange(0.0f, 1.0f);   // the handler works in normalized space
+        KnobEventHandler::setDefault(0.0f);
         setOrientation(KnobEventHandler::Vertical); // drag up = increase
+        KnobEventHandler::setCallback(this);        // we intercept + remap to real units
     }
+
+    // Real-unit range + optional log law + default (for double-click reset).
+    void configure(float min, float max, bool logarithmic, float def)
+    {
+        fMin = min;
+        fMax = max;
+        fLog = logarithmic;
+        KnobEventHandler::setDefault(toNormalized(def));
+    }
+
+    void setRealValue(float v, bool sendCallback = false)
+    {
+        KnobEventHandler::setValue(toNormalized(v), sendCallback);
+    }
+    float getRealValue() const { return toReal(KnobEventHandler::getValue()); }
 
     void setLabel(const std::string& label) { fLabel = label; }
     void setAccentColor(Color color)         { fAccent = color; }
-
-    // Custom value readout (e.g. "0.35 s"). Defaults to two decimals.
     void setFormatter(std::function<std::string(float)> fn) { fFormat = std::move(fn); }
 
 protected:
@@ -59,7 +88,7 @@ protected:
         const float cy = h * 0.42f;                       // knob above, label/readout below
         const float r  = std::fmin(w, h * 0.74f) * 0.34f;
 
-        const float frac     = getNormalizedValue();      // 0..1, respects the log law
+        const float frac     = getNormalizedValue();      // 0..1 (= control position)
         const float valAngle = kArcStart + frac * kArcSweep;
 
         // value-ring track (dim, full sweep)
@@ -103,13 +132,14 @@ protected:
         // label + value readout (skip if the shared font failed to load)
         if (fHasFont)
         {
+            const float real = getRealValue();
             fontFace(NANOVG_DEJAVU_SANS_TTF);
             textAlign(ALIGN_CENTER | ALIGN_TOP);
             fontSize(13.0f);
             fillColor(Color(176, 182, 190));
             text(cx, cy + r + 10, fLabel.c_str(), nullptr);
 
-            const std::string readout = fFormat ? fFormat(getValue()) : defaultFormat(getValue());
+            const std::string readout = fFormat ? fFormat(real) : defaultFormat(real);
             fontSize(12.0f);
             fillColor(Color(226, 230, 236));
             text(cx, cy + r + 26, readout.c_str(), nullptr);
@@ -122,10 +152,33 @@ protected:
     bool onScroll(const ScrollEvent& ev) override { return scrollEvent(ev); }
 
 private:
+    // KnobEventHandler::Callback — remap normalized → real and forward to the user callback.
+    void knobDragStarted(SubWidget*) override  { fCallback->knobDragStarted(this); }
+    void knobDragFinished(SubWidget*) override { fCallback->knobDragFinished(this); }
+    void knobValueChanged(SubWidget*, float norm) override
+    {
+        fCallback->knobValueChanged(this, toReal(norm));
+        repaint();
+    }
+
+    float toReal(float norm) const
+    {
+        norm = norm < 0.0f ? 0.0f : (norm > 1.0f ? 1.0f : norm);
+        return fLog ? fMin * std::pow(fMax / fMin, norm) : fMin + norm * (fMax - fMin);
+    }
+    float toNormalized(float v) const
+    {
+        v = v < fMin ? fMin : (v > fMax ? fMax : v);
+        return fLog ? std::log(v / fMin) / std::log(fMax / fMin) : (v - fMin) / (fMax - fMin);
+    }
+
+    Callback*                         fCallback;
     std::string                       fLabel;
     std::function<std::string(float)> fFormat;
     Color                             fAccent { 79, 208, 224 };
     bool                              fHasFont = false;
+    float                             fMin = 0.0f, fMax = 1.0f;
+    bool                              fLog = false;
 
     static constexpr float kArcStart = 0.75f * 3.14159265358979f; // 135°
     static constexpr float kArcSweep = 1.50f * 3.14159265358979f; // 270° sweep, gap at bottom
