@@ -10,5 +10,6 @@
 #include "pm_params.h"
 
 extern const ModuleParamConstantsGroup sinOscConstantsGroup;
+extern const ModuleParamConstantsGroup adsrConstantsGroup;
 
 #endif // PM_PARAM_DATA_H

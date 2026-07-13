@@ -127,6 +127,16 @@ enum SinOscParamItem : NSUInteger {
    SinOscParamItemModSyncType,
 };
 
+enum ADSRParamItem : NSUInteger {
+   ADSRParamItemAttack = 1,
+   ADSRParamItemDecay,
+   ADSRParamItemSustain,
+   ADSRParamItemRelease,
+   ADSRParamItemGateInput,
+   ADSRParamItemLegato, // 0=Steal, 1=LegatoRetrigger, 2=LegatoTrue
+   ADSRParamItemLinear, // 0=exponential, 1=linear
+};
+
 // Per-parameter constants (portable): the source for CLAP clap_param_info generation.
 struct ModuleParamConstants {
    const char*               name;
