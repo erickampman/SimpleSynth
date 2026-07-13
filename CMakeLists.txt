@@ -48,22 +48,24 @@ target_link_libraries(simplesynth-smoke PRIVATE clap pm_framework)
 # Vendored PolygraphModular framework + our shim/MIDI layer, as a static lib. Compiled with
 # relaxed warnings (vendored code, its own style); our glue and tests stay strict.
 add_library(pm_framework STATIC
-    src/pm/pm_midi.cpp
-    src/pm/ModuleMap.cpp
-    src/pm/pm_param_data.cpp
-    src/pm/SinOscillatorModule.cpp
-    src/pm/ADSRHelper.cpp
-    src/pm/ADSRModule.cpp
-    src/pm/CombineModule.cpp
-    src/pm/FinalModule.cpp
-    src/pm/SlewModule.cpp
-    src/pm/PitchConverterModule.cpp
-    src/pm/ModuleFactory.cpp
-    src/pm/pm_module_specs.cpp
-    src/pm/VoiceStateManager.cpp
-    src/pm/Voice.cpp
-    src/pm/VoiceManager.cpp)
-target_include_directories(pm_framework PUBLIC src/pm)
+    src/Common/pm_midi.cpp
+    src/Common/pm_param_data.cpp
+    src/Module/SinOscillatorModule.cpp
+    src/Module/ADSRHelper.cpp
+    src/Module/ADSRModule.cpp
+    src/Module/CombineModule.cpp
+    src/Module/FinalModule.cpp
+    src/Module/SlewModule.cpp
+    src/Module/PitchConverterModule.cpp
+    src/Module/ModuleFactory.cpp
+    src/Voice/ModuleMap.cpp
+    src/Voice/pm_module_specs.cpp
+    src/Voice/VoiceStateManager.cpp
+    src/Voice/Voice.cpp
+    src/Voice/VoiceManager.cpp)
+# All framework folders on the include path so the vendored `#include "X.hpp"` resolve
+# across Module/ Voice/ Common/ (mirrors PolygraphModular's layout).
+target_include_directories(pm_framework PUBLIC src/Common src/Module src/Voice)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(pm_framework PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
 endif()
