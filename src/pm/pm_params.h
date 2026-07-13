@@ -1,0 +1,127 @@
+// pm_params.h — portable replacement for PolygraphModular's ParamGroupData.h.
+//
+// The original is Objective-C (NSString*/NSArray in the param-constants struct, NS_ENUM
+// throughout), so rather than vendor it we provide the same type NAMES the framework expects,
+// with plain C++ types (const char*, float, uint32). The per-module parameter-ITEM enums are
+// added here as each module is ported. The actual per-module constant DATA (names/ranges) is
+// vendored/converted separately, in pm_param_data.cpp.
+
+#ifndef PM_PARAMS_H
+#define PM_PARAMS_H
+
+#include <cstddef>
+#include <cstdint>
+
+#include "pm_compat.h"
+
+// First param enum value is 1 (0 is "unspecified"); enums double as array indices.
+#define PARAM_ENUM_TO_INDEX(e) ((e) - 1)
+
+// Module kinds — the high byte of a param address. Values must stay stable (they are the
+// module identity in every param clap_id). Mirrors PolygraphModular's ModuleParamKind.
+enum ModuleParamKind : NSUInteger {
+   ModuleParamKindUnspecified = 0,
+   ModuleParamKindGlobal      = 1,
+   ModuleParamKindPitchConverter,
+   ModuleParamKindVelocityConverter,
+   ModuleParamKindSlew,
+   ModuleParamKindSinOsc,
+   ModuleParamKindTriSawOsc,
+   ModuleParamKindNoise,
+   ModuleParamKindADR,
+   ModuleParamKindADSR,
+   ModuleParamKindLFO, /* 0x0A */
+   ModuleParamKindButterworthLowPassFilter,
+   ModuleParamKindChebyshevLowPassFilter,
+   ModuleParamKindButterworthBandpassFilter,
+   ModuleParamKindMultimodeFilter,
+   ModuleParamKindBiquadFilter,
+   ModuleParamKindFormantFilter, /* 0x10 */
+   ModuleParamKindVariableSlopeFilter,
+   ModuleParamKindRezNotchFilter,
+   ModuleParamKindSineWarp,
+   ModuleParamKindPolynomial,
+   ModuleParamKindScaleOffset,
+   ModuleParamKindLevel,
+   ModuleParamKindComparator,
+   ModuleParamKindThresholdImpulse,
+   ModuleParamKindDeltaImpulse,
+   ModuleParamKindOneShot,
+   ModuleParamKindSampleAndHold,
+   ModuleParamKindSequencer,
+   ModuleParamKindDiscretizer,
+   ModuleParamKindEDODiscretizer,
+   ModuleParamKindCombine,
+   ModuleParamKindQuadCombine, /* 0x20 */
+   ModuleParamKindQuadStereoMixer,
+   ModuleParamKindXFade,
+   ModuleParamKindPitchBendConverter,
+   ModuleParamKindControlChangeConverter,
+   ModuleParamKindChannelPressure,
+   ModuleParamKindNoteGate,
+   ModuleParamKindLogicGate,
+   ModuleParamKindClockDivider,
+   ModuleParamKindSampleDelay,
+   ModuleParamKindFinalOutput,
+   ModuleParamKindTunnelInput,
+   ModuleParamKindTunnelOutput,
+   ModuleParamKindChorus,
+   ModuleParamKindFlanger,
+   ModuleParamKindPhaser,
+   ModuleParamKindDelay, /* 0x30 */
+   ModuleParamKindGlobalDelay,
+   ModuleParamKindGlobalReverb,
+   ModuleParamKindGlobalEnhance,
+   ModuleParamKindMIDI,
+   ModuleParamKindNode,
+   ModuleParamKindValue,
+   ModuleParamKindOverdrive,
+   ModuleParamKindSplitLevel,
+   ModuleParamKindMIDINoteNumberConverter,
+   ModuleParamKindUnsplit,
+   ModuleParamKindPan,
+   ModuleParamKindIFSOsc,
+   ModuleParamKindIFSEnv,
+   ModuleParamKindIFSLFO,
+   ModuleParamKindIFSConv,
+   ModuleParamKindIFSRes,
+   ModuleParamKindIFSGran,
+   ModuleParamKindMandOsc,
+   ModuleParamKindJuliaGran,
+   ModuleParamKindClockGran,
+};
+
+// Module instance — the middle byte of a param address (1..24).
+enum ModuleInstance : NSUInteger {
+   ModuleInstance1 = 1,
+   ModuleInstance2, ModuleInstance3, ModuleInstance4, ModuleInstance5, ModuleInstance6,
+   ModuleInstance7, ModuleInstance8, ModuleInstance9, ModuleInstance10, ModuleInstance11,
+   ModuleInstance12, ModuleInstance13, ModuleInstance14, ModuleInstance15, ModuleInstance16,
+   ModuleInstance17, ModuleInstance18, ModuleInstance19, ModuleInstance20, ModuleInstance21,
+   ModuleInstance22, ModuleInstance23, ModuleInstance24,
+};
+
+enum ModuleItem : NSUInteger {
+   ModuleItemUnspecified = 0,
+};
+
+// Per-parameter constants (portable): the source for CLAP clap_param_info generation.
+struct ModuleParamConstants {
+   const char*               name;
+   uint8_t                   item;
+   AudioUnitParameterUnit    unit;
+   AudioUnitParameterOptions flags;
+   const char* const*        valueStrings; // null or null-terminated list (stepped params)
+   AudioUnitParameterValue   minValue;
+   AudioUnitParameterValue   maxValue;
+   AudioUnitParameterValue   defValue;
+   uint64_t                  paramInfo;
+};
+
+struct ModuleParamConstantsGroup {
+   char*                       name;
+   size_t                      count;
+   const ModuleParamConstants* items;
+};
+
+#endif // PM_PARAMS_H

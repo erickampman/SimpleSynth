@@ -45,10 +45,21 @@ target_include_directories(simplesynth-smoke PRIVATE src)
 target_link_libraries(simplesynth-smoke PRIVATE clap)
 
 # --- PM framework port (Phase 1b) ------------------------------------------
-# MIDI layer (spec-derived UMP) + CLAP decoders + vendored AU-free leaf files.
-add_executable(pm-selftest test/pm_selftest.cpp src/pm/pm_midi.cpp)
-target_include_directories(pm-selftest PRIVATE src/pm)
-target_link_libraries(pm-selftest PRIVATE clap)
+# Vendored PolygraphModular framework + our shim/MIDI layer, as a static lib. Compiled with
+# relaxed warnings (vendored code, its own style); our glue and tests stay strict.
+add_library(pm_framework STATIC
+    src/pm/pm_midi.cpp
+    src/pm/ModuleMap.cpp)
+target_include_directories(pm_framework PUBLIC src/pm)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    target_compile_options(pm_framework PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
+endif()
+
+add_executable(pm-selftest test/pm_selftest.cpp)
+target_link_libraries(pm-selftest PRIVATE pm_framework clap)
+
+add_executable(pm-module-test test/pm_module_test.cpp)
+target_link_libraries(pm-module-test PRIVATE pm_framework)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     foreach(t SimpleSynth simplesynth-smoke pm-selftest)
@@ -57,6 +68,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
             target_compile_options(${t} PRIVATE -Werror)
         endif()
     endforeach()
+    # pm-module-test pulls in vendored headers → relaxed (unused params in inline methods).
+    target_compile_options(pm-module-test PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
 endif()
 
 enable_testing()
@@ -65,3 +78,6 @@ set_tests_properties(smoke PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
 
 add_test(NAME pm COMMAND pm-selftest)
 set_tests_properties(pm PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
+
+add_test(NAME pm-module COMMAND pm-module-test)
+set_tests_properties(pm-module PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")

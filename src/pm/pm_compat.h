@@ -23,6 +23,8 @@
 // --- scalar typedefs (Apple aliases → plain C++ types) ---------------------------------
 typedef float    AUValue;
 typedef float    AudioUnitParameterValue;
+typedef uint32_t AudioUnitParameterUnit;
+typedef uint32_t AudioUnitParameterOptions;
 typedef uint64_t AUParameterAddress;
 typedef uint32_t AUAudioFrameCount;
 typedef int64_t  AUEventSampleTime;
