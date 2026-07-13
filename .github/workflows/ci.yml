@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: build & test (${{ matrix.os }} / ${{ matrix.cc }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, cc: gcc }
+          - { os: ubuntu-latest, cc: clang }
+          - { os: macos-latest,  cc: clang }
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DSIMPLESYNTH_WERROR=ON
+      - name: Build
+        run: cmake --build build -j
+      - name: Test (note→audio self-test via ctest)
+        run: ctest --test-dir build --output-on-failure --timeout 30
