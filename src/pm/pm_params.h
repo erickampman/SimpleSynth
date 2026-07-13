@@ -174,6 +174,24 @@ enum TunnelOutParamItem : NSUInteger {
    TunnelOutParamItemInput = 1,
 };
 
+// VoiceManager's own params (polyphony / filtering / mode).
+enum MIDIParamItem : NSUInteger {
+   MIDIParamItemVoiceCount = 1,
+   MIDIParamItemGroupFilterValue,   // 0 = disabled, 1..16 = group
+   MIDIParamItemChannelFilterValue, // 0 = disabled, 1..16 = channel
+   MIDIParamItemVoiceStealAlgorithm,
+   MIDIParamItemFreeRun,
+   MIDIParamItemLegato, // 0=Steal, 1=Legato
+};
+
+enum VoiceStealAlgorithm : NSUInteger {
+   VoiceStealAlgorithmOldest = 0,
+   VoiceStealAlgorithmLowest,
+   VoiceStealAlgorithmHighest,
+   VoiceStealAlgorithmClosest,
+   VoiceStealAlgorithmFurthest,
+};
+
 // Per-parameter constants (portable): the source for CLAP clap_param_info generation.
 struct ModuleParamConstants {
    const char*               name;

@@ -56,6 +56,8 @@ struct UmpMessage {
    uint16_t velocity      = 0; // 16-bit
    uint8_t  attributeType = 0;
    uint16_t attribute     = 0;
+   uint8_t  ccIndex       = 0; // control change (status 0xB): controller index
+   uint32_t ccData        = 0; // control change: 32-bit value
 };
 
 // --- predicates (spec logic; note-on with velocity 0 counts as note-off) -----------------

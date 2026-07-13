@@ -53,6 +53,8 @@ UmpMessage decodeUmp(const uint32_t words[2]) {
    m.attributeType = w0 & 0xFF;
    m.velocity      = (w1 >> 16) & 0xFFFF;
    m.attribute     = w1 & 0xFFFF;
+   m.ccIndex       = (w0 >> 8) & 0xFF; // for control-change messages the note byte is the index
+   m.ccData        = w1;               // and word1 is the full 32-bit value
    return m;
 }
 
