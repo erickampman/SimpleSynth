@@ -31,25 +31,7 @@ inline UmpMessage fromClapMidi2(const clap_event_midi2_t& ev) {
 
 // clap_event_midi_t (MIDI 1.0, 3 bytes) → UMP note/CC. messageType left 0 (ignored) if unhandled.
 inline UmpMessage fromClapMidi1(const clap_event_midi_t& ev) {
-   UmpMessage m;
-   const uint8_t statusNibble = ev.data[0] & 0xF0;
-   m.channel = ev.data[0] & 0x0F;
-   m.note = ev.data[1] & 0x7F;
-   const uint8_t data2 = ev.data[2] & 0x7F;
-   if (statusNibble == 0x90 && data2 > 0) {
-      m.messageType = kUmpTypeChannelVoice2;
-      m.status = kStatusNoteOn;
-      m.velocity = static_cast<uint16_t>(data2 << 9); // 7-bit → 16-bit
-   } else if (statusNibble == 0x80 || (statusNibble == 0x90 && data2 == 0)) {
-      m.messageType = kUmpTypeChannelVoice2;
-      m.status = kStatusNoteOff;
-   } else if (statusNibble == 0xB0) {
-      m.messageType = kUmpTypeChannelVoice2;
-      m.status = kStatusControlChange;
-      m.ccIndex = ev.data[1] & 0x7F;
-      m.ccData = static_cast<uint32_t>(data2) << 25; // 7-bit → 32-bit
-   }
-   return m;
+   return fromMidi1Bytes(ev.data[0], ev.data[1], ev.data[2]);
 }
 
 } // namespace pm

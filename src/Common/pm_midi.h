@@ -77,6 +77,33 @@ inline bool isChannelMessage(const UmpMessage& m) {
    return m.messageType == kUmpTypeChannelVoice2 || m.messageType == kUmpTypeChannelVoice1;
 }
 
+// --- MIDI 1.0 → UMP -----------------------------------------------------------------------
+// Decode a 3-byte MIDI 1.0 channel message (status, data1, data2) into a channel-voice-2
+// UmpMessage. Note-on with velocity 0 becomes a note-off. Unhandled statuses leave
+// messageType == 0 (so isChannelMessage() is false). Host-agnostic: used both by the CLAP
+// boundary (clap_ump.h) and by the DPF wrapper, which receive raw MIDI 1.0 bytes.
+inline UmpMessage fromMidi1Bytes(uint8_t status, uint8_t data1, uint8_t data2) {
+   UmpMessage m;
+   const uint8_t statusNibble = status & 0xF0;
+   m.channel = status & 0x0F;
+   m.note = data1 & 0x7F;
+   const uint8_t d2 = data2 & 0x7F;
+   if (statusNibble == 0x90 && d2 > 0) {
+      m.messageType = kUmpTypeChannelVoice2;
+      m.status = kStatusNoteOn;
+      m.velocity = static_cast<uint16_t>(d2 << 9); // 7-bit → 16-bit
+   } else if (statusNibble == 0x80 || (statusNibble == 0x90 && d2 == 0)) {
+      m.messageType = kUmpTypeChannelVoice2;
+      m.status = kStatusNoteOff;
+   } else if (statusNibble == 0xB0) {
+      m.messageType = kUmpTypeChannelVoice2;
+      m.status = kStatusControlChange;
+      m.ccIndex = data1 & 0x7F;
+      m.ccData = static_cast<uint32_t>(d2) << 25; // 7-bit → 32-bit
+   }
+   return m;
+}
+
 // --- pitch (A440; matches PolygraphModular's MIDINoteToFrequency) -------------------------
 inline double noteToFrequency(int note) {
    return (440.0 / 32.0) * std::pow(2.0, (note - 9) / 12.0);

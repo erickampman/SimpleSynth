@@ -6,10 +6,16 @@ validator. Everything runs headless on Linux/macOS — no DAW or audio device re
 ## Prerequisites
 
 - CMake ≥ 3.17 and a C++20 compiler (gcc or clang).
-- The CLAP headers submodule:
+- Submodules (CLAP headers for the tests; DPF + pugl for the plugin build):
 
   ```sh
   git submodule update --init --recursive
+  ```
+
+- To build the plugin itself (DPF's OpenGL/NanoVG UI), the X11 + GL dev packages:
+
+  ```sh
+  sudo apt install pkg-config libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev
   ```
 
 ## Build and run all tests
@@ -20,15 +26,17 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-Add `-DSIMPLESYNTH_WERROR=ON` at configure time to treat warnings as errors (this is what CI
-uses). Vendored PolygraphModular headers have their own warning style, so that flag suppresses
-a small, fixed set of vendored-only warnings while keeping our own glue strict.
+Add `-DSIMPLESYNTH_WERROR=ON` at configure time to treat warnings as errors for the framework
+and the `pm-selftest` glue (this is what CI keys on). The tests that pull in vendored
+PolygraphModular headers stay on that code's own warning style.
 
 ## What each test covers
 
+The eight CTest cases exercise the `pm_framework` engine end-to-end (the DPF plugin wrapper
+itself is covered by `clap-validator`, below):
+
 | CTest name       | Executable               | Verifies |
 |------------------|--------------------------|----------|
-| `smoke`          | `simplesynth-smoke`      | Full CLAP lifecycle + a note produces audio and decays — now through the real VoiceManager |
 | `pm`             | `pm-selftest`            | UMP MIDI layer: predicates, raw-word decode, microtonal pitch attribute, CLAP→UMP decoders |
 | `pm-module`      | `pm-module-test`         | `Module` + `ModuleMap` core: param read/write, process proc, map add/get |
 | `pm-sinosc`      | `pm-sinosc-test`         | The vendored sine oscillator produces an ~A440 sine |
@@ -54,7 +62,7 @@ Validate the built plugin against the CLAP spec with
 [`clap-validator`](https://github.com/free-audio/clap-validator):
 
 ```sh
-clap-validator validate build/SimpleSynth.clap
+clap-validator validate build/bin/SimpleSynth.clap
 ```
 
 ## Continuous integration

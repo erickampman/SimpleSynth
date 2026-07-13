@@ -1,52 +1,17 @@
 cmake_minimum_required(VERSION 3.17)
 
-project(SimpleSynth VERSION 0.1.0 LANGUAGES CXX)
+# C is needed for DPF's pugl / dgl sources.
+project(SimpleSynth VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)          # PM framework uses std::numbers / std::span
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(SIMPLESYNTH_WERROR "Treat warnings as errors (for CI)" OFF)
+option(SIMPLESYNTH_WERROR "Treat warnings as errors (framework + tests)" OFF)
 
-# CLAP headers (vendored submodule; falls back to an installed package).
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/clap/CMakeLists.txt")
-    add_subdirectory(external/clap EXCLUDE_FROM_ALL)
-else()
-    find_package(clap REQUIRED)
-endif()
-
-# --- the .clap instrument module -------------------------------------------
-add_library(SimpleSynth MODULE src/SimpleSynth.cpp)
-target_include_directories(SimpleSynth PRIVATE src)
-target_link_libraries(SimpleSynth PRIVATE clap pm_framework)
-
-if(APPLE)
-    set_target_properties(SimpleSynth PROPERTIES
-        BUNDLE TRUE
-        BUNDLE_EXTENSION clap
-        MACOSX_BUNDLE_GUI_IDENTIFIER com.example.simplesynth
-        MACOSX_BUNDLE_BUNDLE_NAME SimpleSynth
-        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in")
-    target_link_options(SimpleSynth PRIVATE
-        -exported_symbols_list "${CMAKE_CURRENT_SOURCE_DIR}/cmake/simplesynth-macos.symbols")
-elseif(UNIX)
-    set_target_properties(SimpleSynth PROPERTIES PREFIX "" SUFFIX ".clap")
-    target_link_options(SimpleSynth PRIVATE
-        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/simplesynth-linux.version"
-        "-Wl,-z,defs")
-elseif(WIN32)
-    set_target_properties(SimpleSynth PROPERTIES PREFIX "" SUFFIX ".clap")
-endif()
-
-# --- lifecycle self-test ---------------------------------------------------
-add_executable(simplesynth-smoke test/host_smoke.cpp src/SimpleSynth.cpp)
-target_include_directories(simplesynth-smoke PRIVATE src)
-target_link_libraries(simplesynth-smoke PRIVATE clap pm_framework)
-
-# --- PM framework port (Phase 1b) ------------------------------------------
+# --- PM framework port -----------------------------------------------------
 # Vendored PolygraphModular framework + our shim/MIDI layer, as a static lib. Compiled with
-# relaxed warnings (vendored code, its own style); our glue and tests stay strict.
+# relaxed warnings (vendored code, its own style); our glue and tests stay strict. PIC so it
+# can be linked into the shared .clap module.
 add_library(pm_framework STATIC
     src/Common/pm_midi.cpp
     src/Common/pm_param_data.cpp
@@ -63,6 +28,7 @@ add_library(pm_framework STATIC
     src/Voice/VoiceStateManager.cpp
     src/Voice/Voice.cpp
     src/Voice/VoiceManager.cpp)
+set_target_properties(pm_framework PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # All framework folders on the include path so the vendored `#include "X.hpp"` resolve
 # across Module/ Voice/ Common/ (mirrors PolygraphModular's layout).
 target_include_directories(pm_framework PUBLIC src/Common src/Module src/Voice)
@@ -70,8 +36,30 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(pm_framework PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
 endif()
 
+# --- the plugin: CLAP + OpenGL UI, built with DPF --------------------------
+# DPF (vendored submodule) owns the plugin wrapper and generates the .clap from our DSP + UI
+# subclasses; the DSP side drives pm_framework's VoiceManager. The four ADSR knobs route to
+# the envelope module live.
+add_subdirectory(dpf)
+dpf_add_plugin(SimpleSynth
+    TARGETS clap
+    UI_TYPE opengl
+    FILES_DSP
+        plugin/SimpleSynthPlugin.cpp
+    FILES_UI
+        src/UI/SimpleSynthUI.cpp)
+# So both DSP and UI sources find DistrhoPluginInfo.h + SimpleSynthParams.h.
+target_include_directories(SimpleSynth PUBLIC plugin)
+# The DSP side pulls in the vendored engine.
+target_link_libraries(SimpleSynth-dsp PUBLIC pm_framework)
+# DPF may default to an older standard; the DSP glue includes C++20 framework headers.
+set_target_properties(SimpleSynth-dsp SimpleSynth-ui PROPERTIES
+    CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+
+# --- self-tests (the framework; headless, no DAW) --------------------------
 add_executable(pm-selftest test/pm_selftest.cpp)
-target_link_libraries(pm-selftest PRIVATE pm_framework clap)
+target_link_libraries(pm-selftest PRIVATE pm_framework)
+target_include_directories(pm-selftest PRIVATE external/clap/include) # clap_ump.h decoders
 
 add_executable(pm-module-test test/pm_module_test.cpp)
 target_link_libraries(pm-module-test PRIVATE pm_framework)
@@ -95,20 +83,11 @@ add_executable(pm-voicemanager-test test/pm_voicemanager_test.cpp)
 target_link_libraries(pm-voicemanager-test PRIVATE pm_framework)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-    # pm-selftest only pulls in light headers → fully strict.
-    # SimpleSynth + smoke are our code but include vendored framework headers → strict on our
-    # logic, but tolerate the vendored style (unknown pragmas / unused params).
+    # pm-selftest only pulls in light headers → fully strict (optionally -Werror in CI).
     target_compile_options(pm-selftest PRIVATE -Wall -Wextra)
-    set(PM_VENDOR_WARN_SUPPRESS
-        -Wno-unknown-pragmas -Wno-unused-parameter -Wno-sign-compare -Wno-unused-function)
-    foreach(t SimpleSynth simplesynth-smoke)
-        target_compile_options(${t} PRIVATE -Wall -Wextra ${PM_VENDOR_WARN_SUPPRESS})
-    endforeach()
-    foreach(t SimpleSynth simplesynth-smoke pm-selftest)
-        if(SIMPLESYNTH_WERROR)
-            target_compile_options(${t} PRIVATE -Werror)
-        endif()
-    endforeach()
+    if(SIMPLESYNTH_WERROR)
+        target_compile_options(pm-selftest PRIVATE -Werror)
+    endif()
     # tests that pull in vendored headers → relaxed (unused params in inline methods).
     foreach(t pm-module-test pm-sinosc-test pm-adsr-test pm-modules-test pm-factory-test
               pm-voice-test pm-voicemanager-test)
@@ -117,9 +96,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
 endif()
 
 enable_testing()
-add_test(NAME smoke COMMAND simplesynth-smoke)
-set_tests_properties(smoke PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
-
 add_test(NAME pm COMMAND pm-selftest)
 set_tests_properties(pm PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
 
