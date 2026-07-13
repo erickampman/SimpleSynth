@@ -39,7 +39,7 @@ public:
         : NanoSubWidget(parent),
           KnobEventHandler(this)
     {
-        loadSharedResources(); // "sans" font for this widget's NanoVG context
+        fHasFont = loadSharedResources(); // DPF's bundled DejaVu Sans for this NanoVG context
         setCallback(callback);
         setOrientation(KnobEventHandler::Vertical); // drag up = increase
     }
@@ -100,18 +100,20 @@ protected:
         strokeWidth(2.5f);
         stroke();
 
-        // label
-        fontFace("sans");
-        textAlign(ALIGN_CENTER | ALIGN_TOP);
-        fontSize(13.0f);
-        fillColor(Color(176, 182, 190));
-        text(cx, cy + r + 10, fLabel.c_str(), nullptr);
+        // label + value readout (skip if the shared font failed to load)
+        if (fHasFont)
+        {
+            fontFace(NANOVG_DEJAVU_SANS_TTF);
+            textAlign(ALIGN_CENTER | ALIGN_TOP);
+            fontSize(13.0f);
+            fillColor(Color(176, 182, 190));
+            text(cx, cy + r + 10, fLabel.c_str(), nullptr);
 
-        // value readout
-        const std::string readout = fFormat ? fFormat(getValue()) : defaultFormat(getValue());
-        fontSize(12.0f);
-        fillColor(Color(226, 230, 236));
-        text(cx, cy + r + 26, readout.c_str(), nullptr);
+            const std::string readout = fFormat ? fFormat(getValue()) : defaultFormat(getValue());
+            fontSize(12.0f);
+            fillColor(Color(226, 230, 236));
+            text(cx, cy + r + 26, readout.c_str(), nullptr);
+        }
     }
 
     // Hand interaction to the KnobEventHandler.
@@ -123,6 +125,7 @@ private:
     std::string                       fLabel;
     std::function<std::string(float)> fFormat;
     Color                             fAccent { 79, 208, 224 };
+    bool                              fHasFont = false;
 
     static constexpr float kArcStart = 0.75f * 3.14159265358979f; // 135°
     static constexpr float kArcSweep = 1.50f * 3.14159265358979f; // 270° sweep, gap at bottom
