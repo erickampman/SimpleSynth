@@ -11,5 +11,9 @@
 
 extern const ModuleParamConstantsGroup sinOscConstantsGroup;
 extern const ModuleParamConstantsGroup adsrConstantsGroup;
+extern const ModuleParamConstantsGroup combineConstantsGroup;
+extern const ModuleParamConstantsGroup finalConstantsGroup;
+extern const ModuleParamConstantsGroup slewModuleConstantsGroup;
+extern const ModuleParamConstantsGroup pitchConverterModuleConstantsGroup;
 
 #endif // PM_PARAM_DATA_H

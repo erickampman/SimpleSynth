@@ -53,7 +53,11 @@ add_library(pm_framework STATIC
     src/pm/pm_param_data.cpp
     src/pm/SinOscillatorModule.cpp
     src/pm/ADSRHelper.cpp
-    src/pm/ADSRModule.cpp)
+    src/pm/ADSRModule.cpp
+    src/pm/CombineModule.cpp
+    src/pm/FinalModule.cpp
+    src/pm/SlewModule.cpp
+    src/pm/PitchConverterModule.cpp)
 target_include_directories(pm_framework PUBLIC src/pm)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     target_compile_options(pm_framework PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
@@ -71,6 +75,9 @@ target_link_libraries(pm-sinosc-test PRIVATE pm_framework)
 add_executable(pm-adsr-test test/pm_adsr_test.cpp)
 target_link_libraries(pm-adsr-test PRIVATE pm_framework)
 
+add_executable(pm-modules-test test/pm_modules_test.cpp)
+target_link_libraries(pm-modules-test PRIVATE pm_framework)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     foreach(t SimpleSynth simplesynth-smoke pm-selftest)
         target_compile_options(${t} PRIVATE -Wall -Wextra)
@@ -79,7 +86,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         endif()
     endforeach()
     # tests that pull in vendored headers → relaxed (unused params in inline methods).
-    foreach(t pm-module-test pm-sinosc-test pm-adsr-test)
+    foreach(t pm-module-test pm-sinosc-test pm-adsr-test pm-modules-test)
         target_compile_options(${t} PRIVATE -Wall -Wno-unknown-pragmas -Wno-unused-parameter)
     endforeach()
 endif()
@@ -99,3 +106,6 @@ set_tests_properties(pm-sinosc PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
 
 add_test(NAME pm-adsr COMMAND pm-adsr-test)
 set_tests_properties(pm-adsr PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")
+
+add_test(NAME pm-modules COMMAND pm-modules-test)
+set_tests_properties(pm-modules PROPERTIES PASS_REGULAR_EXPRESSION "ALL PASS")

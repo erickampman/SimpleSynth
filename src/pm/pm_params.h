@@ -137,6 +137,38 @@ enum ADSRParamItem : NSUInteger {
    ADSRParamItemLinear, // 0=exponential, 1=linear
 };
 
+enum ParamItemCombineType : NSInteger {
+   ParamItemCombineType_Add = 0,
+   ParamItemCombineType_Multiply,
+};
+
+enum CombineParamItem : NSUInteger {
+   CombineParamItemInput1 = 1,
+   CombineParamItemInput2,
+   CombineParamItemInput3,
+   CombineParamItemType,
+   CombineParamItemLevel,
+};
+
+enum FinalOutputParamItem : NSUInteger {
+   FinalOutputParamItemInput = 1,
+   FinalOutputParamItemSpread,
+   FinalOutputParamItemLevel,
+   FinalOutputParamItemClipLevel,
+   FinalOutputParamItemFilterDC,
+};
+
+enum SlewParamItem : NSUInteger {
+   SlewParamItemInput = 1,
+   SlewParamItemRise,
+   SlewParamItemFall,
+   SlewParamItemCurve,
+};
+
+enum PitchConverterParamItem : NSUInteger {
+   PitchConverterParamItemDummy = 1,
+};
+
 // Per-parameter constants (portable): the source for CLAP clap_param_info generation.
 struct ModuleParamConstants {
    const char*               name;

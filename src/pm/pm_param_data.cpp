@@ -38,3 +38,45 @@ const ModuleParamConstantsGroup adsrConstantsGroup = {
    sizeof(adsrConstants) / sizeof(adsrConstants[0]),
    adsrConstants,
 };
+
+// Combine — 4-quadrant multiplier (the VCA). Type defaults to Multiply, Level 1.0.
+static const ModuleParamConstants combineConstants[] = {
+   {"input1", CombineParamItemInput1, 0, 0, nullptr, 0.0f, 0.0f, 0.0f, 0},
+   {"input2", CombineParamItemInput2, 0, 0, nullptr, 0.0f, 0.0f, 0.0f, 0},
+   {"input3", CombineParamItemInput3, 0, 0, nullptr, 0.0f, 0.0f, 0.0f, 0},
+   {"type", CombineParamItemType, 0, 0, nullptr, (float)ParamItemCombineType_Add,
+    (float)ParamItemCombineType_Multiply, (float)ParamItemCombineType_Multiply, 0},
+   {"level", CombineParamItemLevel, 0, 0, nullptr, 0.0f, 1.0f, 1.0f, 0},
+};
+const ModuleParamConstantsGroup combineConstantsGroup = {
+   const_cast<char*>("combine"), sizeof(combineConstants) / sizeof(combineConstants[0]),
+   combineConstants};
+
+// Final — output stage (DC block / level / M-S spread / clip).
+static const ModuleParamConstants finalConstants[] = {
+   {"input", FinalOutputParamItemInput, 0, 0, nullptr, 0.0f, 0.0f, 0.0f, 0},
+   {"spread", FinalOutputParamItemSpread, 0, 0, nullptr, 0.0f, 1.0f, 0.7f, 0},
+   {"level", FinalOutputParamItemLevel, 0, 0, nullptr, 0.0f, 1.0f, 0.7f, 0},
+   {"clipLevel", FinalOutputParamItemClipLevel, 0, 0, nullptr, 0.0f, 1.0f, 1.0f, 0},
+   {"filterDC", FinalOutputParamItemFilterDC, 0, 0, nullptr, 0.0f, 1.0f, 1.0f, 0},
+};
+const ModuleParamConstantsGroup finalConstantsGroup = {
+   const_cast<char*>("final"), sizeof(finalConstants) / sizeof(finalConstants[0]), finalConstants};
+
+// Slew — slew-rate limiter (smooths the pitch signal). Rise/Fall in seconds per unit.
+static const ModuleParamConstants slewConstants[] = {
+   {"input", SlewParamItemInput, 0, 0, nullptr, 0.0f, 0.0f, 0.0f, 0},
+   {"rise", SlewParamItemRise, 0, 0, nullptr, 1e-8f, 10.0f, 0.01f, 0},
+   {"fall", SlewParamItemFall, 0, 0, nullptr, 1e-8f, 10.0f, 0.01f, 0},
+   {"curve", SlewParamItemCurve, 0, 0, nullptr, 0.0f, 0.0f, 0.0f, 0},
+};
+const ModuleParamConstantsGroup slewModuleConstantsGroup = {
+   const_cast<char*>("slew"), sizeof(slewConstants) / sizeof(slewConstants[0]), slewConstants};
+
+// PitchConverter — MIDI note → pitch (1/octave). One placeholder param.
+static const ModuleParamConstants pitchConverterConstants[] = {
+   {"dummy", PitchConverterParamItemDummy, 0, 0, nullptr, 0.0f, 0.0f, 0.0f, 0},
+};
+const ModuleParamConstantsGroup pitchConverterModuleConstantsGroup = {
+   const_cast<char*>("pitchConverter"),
+   sizeof(pitchConverterConstants) / sizeof(pitchConverterConstants[0]), pitchConverterConstants};
