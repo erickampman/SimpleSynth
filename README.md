@@ -15,10 +15,6 @@ which generates the CLAP around our DSP + UI subclasses. The UI is a row of Nano
 rotary knobs — **Gain + the four ADSR controls** — that edit the envelope live. Passes
 `clap-validator` (18/18).
 
-Next: **Phase 3** drops in the IFS modules (IFSOsc/IFSEnv/IFSLFO) and a 24 dB/oct LPF (pure
-module additions, no architectural change), and the UI grows to match. Full plan in
-`~/dev-clap/polygraph-clap-plan.md`.
-
 ## Layout
 
 The engine (`src/`) mirrors PolygraphModular's structure; the DPF plugin assembly lives in
