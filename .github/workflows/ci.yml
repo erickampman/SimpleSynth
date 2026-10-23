@@ -27,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          token: ${{ secrets.SUBMODULES_TOKEN || github.token }}   # dpf + pugl are private forks
           submodules: recursive
       - name: Install DPF UI deps (Linux)
         if: runner.os == 'Linux'

@@ -48,6 +48,9 @@ dpf_add_plugin(SimpleSynth
         plugin/SimpleSynthPlugin.cpp
     FILES_UI
         src/UI/SimpleSynthUI.cpp)
+# SimpleSynth's own namespace (UmpireDAW's docs/decisions.md, "DPF fork"): on macOS pugl names its
+# Objective-C classes after it, so two DPF binaries with the same one in a host collide.
+target_compile_definitions(dgl-opengl PUBLIC DGL_NAMESPACE=SimpleSynthDGL)
 # So both DSP and UI sources find DistrhoPluginInfo.h + SimpleSynthParams.h.
 target_include_directories(SimpleSynth PUBLIC plugin)
 # The DSP side pulls in the vendored engine.
